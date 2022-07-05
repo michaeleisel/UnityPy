@@ -94,7 +94,7 @@ class BundleFile(File.File):
         else:  # 0x40 kArchiveBlocksAndDirectoryInfoCombined
             blocksInfoBytes = reader.read_bytes(compressedSize)
 
-        blocksInfoBytes = decompress_data(
+        blocksInfoBytes = self.decompress_data(
             blocksInfoBytes, uncompressedSize, self._data_flags
         )
         blocksInfoReader = EndianBinaryReader(blocksInfoBytes, offset=start)
@@ -130,7 +130,7 @@ class BundleFile(File.File):
 
         blocksReader = EndianBinaryReader(
             b"".join(
-                decompress_data(
+                self.decompress_data(
                     reader.read_bytes(blockInfo.compressedSize),
                     blockInfo.uncompressedSize,
                     blockInfo.flags,
@@ -350,30 +350,33 @@ class BundleFile(File.File):
         writer.Position = writer_end_pos
 
 
-def decompress_data(
-    compressed_data: bytes, uncompressed_size: int, flags: int
-) -> bytes:
-    """
-    Parameters
-    ----------
-    compressed_data : bytes
-        The compressed data.
-    uncompressed_size : int
-        The uncompressed size of the data.
-    flags : int
-        The flags of the data.
+    def decompress_data(
+        self, compressed_data: bytes, uncompressed_size: int, flags: int
+    ) -> bytes:
+        """
+        Parameters
+        ----------
+        compressed_data : bytes
+            The compressed data.
+        uncompressed_size : int
+            The uncompressed size of the data.
+        flags : int
+            The flags of the data.
 
-    Returns
-    -------
-    bytes
-        The decompressed data."""
-    switch = flags & 0x3F
+        Returns
+        -------
+        bytes
+            The decompressed data."""
+        switch = flags & 0x3F
+        if not self.decompressions:
+            self.decompressions = []
+        self.decompressions.append([compressed_data, uncompressed_size])
 
-    if switch == 1:  # LZMA
-        return CompressionHelper.decompress_lzma(compressed_data)
-    elif switch in [2, 3]:  # LZ4, LZ4HC
-        return CompressionHelper.decompress_lz4(compressed_data, uncompressed_size)
-    elif switch == 4:  # LZHAM
-        raise NotImplementedError("LZHAM decompression not implemented")
-    else:
-        return compressed_data
+        if switch == 1:  # LZMA
+            return CompressionHelper.decompress_lzma(compressed_data)
+        elif switch in [2, 3]:  # LZ4, LZ4HC
+            return CompressionHelper.decompress_lz4(compressed_data, uncompressed_size)
+        elif switch == 4:  # LZHAM
+            raise NotImplementedError("LZHAM decompression not implemented")
+        else:
+            return compressed_data
